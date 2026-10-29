@@ -1,0 +1,11 @@
+# macOS
+.DS_Store
+
+# WorkBuddy 工作区数据（含会话记忆，不入库）
+.workbuddy/
+
+# arduino-cli 构建产物
+build/
+*.elf
+*.map
+*.bin

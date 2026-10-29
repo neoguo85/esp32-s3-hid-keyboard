@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ESP32-S3 HID 键盘输入器 · 刷机与上手</title>
+<style>
+  :root{
+    --bg:#0d0f13; --card:#161920; --card2:#1a1e26; --line:#272c37;
+    --fg:#e8eaee; --muted:#9aa3b2; --dim:#6b7280;
+    --accent:#4a9eff; --ok:#34d399; --warn:#f5a524; --code-bg:#080a0d;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0; background:var(--bg); color:var(--fg); font-family:var(--sans);
+    font-size:15px; line-height:1.7; padding:0 16px 72px;
+    background-image:radial-gradient(1200px 600px at 50% -200px,rgba(74,158,255,.09),transparent 70%);
+    background-repeat:no-repeat;
+  }
+  .wrap{max-width:860px;margin:0 auto;min-width:0}
+
+  header{padding:48px 0 28px}
+  .eyebrow{font:600 11px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
+  h1{margin:12px 0 10px;font-size:clamp(24px,5vw,34px);line-height:1.25;font-weight:700;letter-spacing:-.01em}
+  .sub{color:var(--muted);font-size:14px;margin:0}
+  .meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+  .tag{font:500 12px/1 var(--mono);color:var(--muted);background:var(--card);
+       border:1px solid var(--line);border-radius:999px;padding:7px 11px;
+       max-width:100%;overflow-wrap:anywhere}
+  .tag b{color:var(--fg);font-weight:600}
+
+  section{margin-top:34px}
+  .h{display:flex;align-items:baseline;gap:10px;margin-bottom:14px}
+  .num{font:600 12px/1 var(--mono);color:var(--accent);background:rgba(74,158,255,.12);
+       border:1px solid rgba(74,158,255,.25);border-radius:6px;padding:5px 8px}
+  h2{margin:0;font-size:17px;font-weight:650;letter-spacing:.01em}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+  .card + .card{margin-top:10px}
+
+  .kv{display:grid;grid-template-columns:minmax(0,96px) minmax(0,1fr);gap:6px 14px;font-size:14px}
+  .kv dt{color:var(--dim)}
+  .kv dd{margin:0;color:var(--fg);min-width:0;overflow-wrap:anywhere}
+  .price{color:var(--ok);font-weight:650;font-family:var(--mono)}
+
+  ol,ul{margin:10px 0 0;padding-left:22px}
+  li{margin:5px 0;color:var(--muted);overflow-wrap:anywhere}
+  li b{color:var(--fg);font-weight:600}
+  li code, p code{font-family:var(--mono);font-size:.88em;background:#20242d;
+       border:1px solid var(--line);border-radius:4px;padding:1px 5px;color:#c8d0dc}
+
+  .codewrap{margin-top:12px;background:var(--code-bg);border:1px solid var(--line);
+            border-radius:10px;overflow:hidden}
+  .bar{display:flex;align-items:center;justify-content:space-between;gap:10px;
+       padding:8px 12px;background:#0e1117;border-bottom:1px solid var(--line)}
+  .fname{font:500 12px/1 var(--mono);color:var(--muted);overflow:hidden;
+         text-overflow:ellipsis;white-space:nowrap}
+  .copy{flex:none;font:500 12px/1 var(--sans);color:var(--muted);background:#1b1f27;
+        border:1px solid var(--line);border-radius:7px;padding:7px 12px;cursor:pointer;
+        transition:.15s;display:inline-flex;align-items:center;gap:6px}
+  .copy:hover{color:var(--fg);border-color:#3a4150;background:#222833}
+  .copy:active{transform:scale(.97)}
+  .copy.ok{color:var(--ok);border-color:rgba(52,211,153,.45);background:rgba(52,211,153,.1)}
+  .codewrap pre{margin:0;padding:14px 16px;overflow-x:auto;font:13px/1.7 var(--mono);
+                color:#d7dce5;tab-size:2}
+  .codewrap pre::-webkit-scrollbar{height:9px}
+  .codewrap pre::-webkit-scrollbar-thumb{background:#2c323d;border-radius:9px}
+  .codewrap pre::-webkit-scrollbar-track{background:transparent}
+
+  .note{margin-top:12px;border-left:3px solid var(--accent);background:rgba(74,158,255,.07);
+        border-radius:0 8px 8px 0;padding:11px 14px;font-size:13.5px;color:#c3cbd8;
+        overflow-wrap:anywhere}
+  .note.warn{border-left-color:var(--warn);background:rgba(245,165,36,.08)}
+  .note b{color:var(--fg)}
+  .note .k{color:var(--accent);font-weight:600}
+  .note.warn .k{color:var(--warn)}
+
+  .steps{counter-reset:s;list-style:none;padding:0;margin:12px 0 0;
+         display:grid;gap:9px}
+  .steps li{counter-increment:s;position:relative;padding:11px 14px 11px 44px;
+            background:var(--card2);border:1px solid var(--line);border-radius:9px;
+            color:#c3cbd8;font-size:14px}
+  .steps li::before{content:counter(s);position:absolute;left:13px;top:11px;
+    width:20px;height:20px;border-radius:50%;background:rgba(74,158,255,.15);
+    border:1px solid rgba(74,158,255,.35);color:var(--accent);
+    font:600 11px/19px var(--mono);text-align:center}
+
+  table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13.5px}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--dim);font-weight:500;font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+  td{color:#c3cbd8}
+  td:first-child{color:var(--fg);white-space:nowrap;font-family:var(--mono);font-size:12.5px}
+  tr:last-child td{border-bottom:none}
+
+  footer{margin-top:44px;padding-top:20px;border-top:1px solid var(--line);
+         color:var(--dim);font-size:12.5px;display:flex;gap:10px;flex-wrap:wrap;
+         justify-content:space-between}
+
+  @media (max-width:560px){
+    .kv{grid-template-columns:minmax(0,1fr);gap:2px}
+    .kv dt{margin-top:8px}
+    header{padding-top:34px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">ESP32-S3 · USB HID</div>
+    <h1>HID 键盘输入器</h1>
+    <p class="sub">刷固件 → 在禁粘贴环境里自动敲入文本。一页看完，命令和代码点右上角直接复制。</p>
+    <div class="meta">
+      <span class="tag">型号 <b>ESP32-S3-WROOM-1-N16R8</b></span>
+      <span class="tag">arduino-cli <b>1.5.1</b></span>
+      <span class="tag">板包 <b>esp32 3.3.10-cn</b></span>
+      <span class="tag">编译实测 <b>82%</b></span>
+    </div>
+  </header>
+
+  <section>
+    <div class="h"><span class="num">01</span><h2>硬件要求</h2></div>
+    <div class="card">
+      <dl class="kv">
+        <dt>模组</dt><dd>乐鑫 ESP32-S3-WROOM-1-<b>N16R8</b>，任意兼容官方 ESP32-S3-DevKitC-1 的开发板均可</dd>
+        <dt>规格</dt><dd>建议选<b>已焊接排针</b>版，方便反复插拔和按 BOOT / EN</dd>
+        <dt>为什么</dt><dd>N16 = 16MB Flash 存长文本；R8 = 8MB <b>OPI</b> PSRAM。别用 N8R2 / N4R2，分区和 PSRAM 参数都要跟着改</dd>
+      </dl>
+    </div>
+    <ul>
+      <li>板子有<b>两个 Type-C</b>：右口 <b>UART</b>（下载 + 调试），左口 <b>USB</b>（HID 输出）</li>
+      <li>附带线必须是<b>数据线</b>，纯充电线会导致后续查不到端口</li>
+      <li>macOS 免驱，插上就能用（CH343 芯片需另装 WCH 驱动）</li>
+    </ul>
+  </section>
+
+  <section>
+    <div class="h"><span class="num">02</span><h2>一次性装环境</h2></div>
+    <div class="codewrap">
+      <div class="bar"><span class="fname">Terminal · 国内镜像</span>
+        <button class="copy">复制</button></div>
+<pre><code>brew install arduino-cli
+
+arduino-cli config init
+arduino-cli config add board_manager.additional_urls \
+  https://jihulab.com/esp-mirror/espressif/arduino-esp32/-/raw/gh-pages/package_esp32_index_cn.json
+arduino-cli config save
+
+arduino-cli core update-index
+arduino-cli core install esp32:esp32@3.3.10-cn
+arduino-cli lib install "Adafruit TinyUSB Library"</code></pre>
+    </div>
+    <div class="note">板包首次装要拉 <b>1GB+</b> 工具链，5~15 分钟。中途断了重跑同一条命令即可，不重复下载。</div>
+  </section>
+
+  <section>
+    <div class="h"><span class="num">03</span><h2>烧录前必改的 5 行</h2></div>
+    <div class="codewrap">
+      <div class="bar"><span class="fname">esp32_hid_key.ino · 第 17–21 行</span>
+        <button class="copy">复制</button></div>
+<pre><code>const char* STA_SSID = "YOUR_WIFI_SSID";
+const char* STA_PASS = "YOUR_WIFI_PASSWORD";
+const char* AP_SSID = "ESP32_HID_KEYBOARD";   // 同房间多台必须改成互不相同
+const char* AP_PASS = "12345678";             // 建议一并改掉
+const char* MDNS_NAME = "esp32-hid";          // 多台时加后缀，如 esp32-hid-neo</code></pre>
+    </div>
+    <div class="note warn">
+      <span class="k">多人同房间必须改名。</span>默认 AP 名和 <code>192.168.4.1</code> 所有人都一样，连错别人的板子毫无感知 —— 你在别人的板子上配了一通文本，自己这块没反应。各自改成 <code>ESP32_HID_你的名字</code>，AP 密码、mDNS 名也一起改，板子上贴个标签。
+    </div>
+    <div class="note">
+      两个 <code>YOUR_</code> 占位符不替换也能跑，但板子连不上热点，10 秒后退到 AP 模式（<code>ESP32_HID_KEYBOARD</code> / <code>12345678</code> / <code>192.168.4.1</code>）。建议用<b>手机热点</b>，公司 WiFi 常开 802.1X 或客户端隔离，连不上也 ping 不通。
+    </div>
+  </section>
+
+  <section>
+    <div class="h"><span class="num">04</span><h2>固件代码</h2></div>
+    <div class="codewrap">
+      <div class="bar"><span class="fname">esp32_hid_key.ino · 完整可编译</span>
+        <button class="copy">复制</button></div>
+<pre><code>#include "USB.h"
+#include "USBHIDKeyboard.h"
+#include &lt;WiFi.h&gt;
+#include &lt;WebServer.h&gt;
+#include &lt;LittleFS.h&gt;
+#include &lt;ESPmDNS.h&gt;
+
+USBHIDKeyboard Keyboard;
+WebServer server(80);
+
+#define BTN_BOOT 0
+unsigned long lastPress = 0;
+const unsigned long debounce = 300;
+const int CHAR_DELAY = 80;
+const int HOLD_DELAY = 20;
+
+const char* STA_SSID = "YOUR_WIFI_SSID";
+const char* STA_PASS = "YOUR_WIFI_PASSWORD";
+const char* AP_SSID = "ESP32_HID_KEYBOARD";   // 同房间多台设备时必须改成互不相同的名字
+const char* AP_PASS = "12345678";             // 建议一并改掉，避免连错别人的板子
+const char* MDNS_NAME = "esp32-hid";          // 局域网内需唯一，多台时加后缀，如 esp32-hid-neo
+
+String inputText;
+int errLine = 0;
+int errCol = 0;
+
+bool isTyping = false;
+bool isPaused = false;
+int typeIndex = 0;
+unsigned long typeTimer = 0;
+bool keyHeld = false;
+
+const char* PAGE = R"HTML(
+&lt;!DOCTYPE html&gt;
+&lt;html&gt;
+&lt;head&gt;
+&lt;meta charset="UTF-8"&gt;
+&lt;meta name="viewport" content="width=device-width, initial-scale=1"&gt;
+&lt;title&gt;HID Keyboard Config&lt;/title&gt;
+&lt;style&gt;
+  body { font-family: system-ui, sans-serif; max-width: 700px; margin: 30px auto; padding: 0 20px; }
+  textarea { width: 100%; height: 320px; padding: 10px; font-size: 14px; box-sizing: border-box; white-space: pre; }
+  .btn-group { display: flex; gap: 10px; margin-top: 12px; }
+  button { flex: 1; padding: 12px; font-size: 15px; border: none; border-radius: 6px; cursor: pointer; color: #fff; }
+  .btn-save { background: #2563eb; }
+  .btn-send { background: #059669; }
+  .btn-stop { background: #dc2626; }
+  .btn-locate { background:#d97706; color:#fff; padding:6px 10px; border:none; border-radius:4px; cursor:pointer; margin-left:8px; }
+  .tip { color: #666; font-size: 13px; margin-top: 16px; line-height: 1.6; }
+  .status-ok { color:#059669; padding:10px; background:#ecfdf5; border-radius:6px; margin-bottom:12px; }
+  .status-fail { color:#dc2626; padding:10px; background:#fef2f2; border-radius:6px; margin-bottom:12px; }
+  .warn { color:#d97706; padding:10px; background:#fffbeb; border-radius:6px; margin-bottom:12px; display:flex; align-items:center; flex-wrap:wrap; }
+  .run-status { padding:8px 10px; background:#f3f4f6; border-radius:6px; margin-bottom:12px; font-weight:bold; }
+&lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+  &lt;h3&gt;HID Keyboard Text Config&lt;/h3&gt;
+  &lt;div class="run-status"&gt;Status: %RUN_STATUS%&lt;/div&gt;
+  %TIP%
+  %WARN%
+  &lt;form method="POST" action="/save" id="form"&gt;
+    &lt;textarea id="txt" name="text" placeholder="Enter text to type..."&gt;%TEXT%&lt;/textarea&gt;
+    &lt;div class="btn-group"&gt;
+      &lt;button type="submit" class="btn-save"&gt;Save Text&lt;/button&gt;
+    &lt;/div&gt;
+  &lt;/form&gt;
+  &lt;div class="btn-group"&gt;
+    &lt;form method="POST" action="/send" style="flex:1"&gt;
+      &lt;button type="submit" class="btn-send"&gt;Send Now&lt;/button&gt;
+    &lt;/form&gt;
+    &lt;form method="POST" action="/stop" style="flex:1"&gt;
+      &lt;button type="submit" class="btn-stop"&gt;Stop Typing&lt;/button&gt;
+    &lt;/form&gt;
+  &lt;/div&gt;
+  &lt;div class="tip"&gt;
+    - Click &lt;b&gt;Send Now&lt;/b&gt; to start typing immediately via web&lt;br&gt;
+    - Single press BOOT: start typing / pause-resume&lt;br&gt;
+    - Click &lt;b&gt;Stop Typing&lt;/b&gt; to cancel at any time&lt;br&gt;
+    - Text saved to flash and persists after power off&lt;br&gt;
+    - Unsupported character check runs when you click Save
+  &lt;/div&gt;
+
+&lt;script&gt;
+const targetLine = %ERR_LINE%;
+const targetCol = %ERR_COL%;
+const ta = document.getElementById('txt');
+ta.focus();
+
+function goLine(){
+  if(!targetLine) return;
+  const lines = ta.value.split('\n');
+  let pos = 0;
+  for(let i=0; i &lt; targetLine-1; i++){
+    pos += lines[i].length + 1;
+  }
+  ta.focus();
+  ta.selectionStart = pos + targetCol - 1;
+  ta.selectionEnd = ta.selectionStart + 1;
+  ta.scrollTop = ta.scrollHeight * (ta.selectionStart / ta.value.length);
+}
+&lt;/script&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+)HTML";
+
+String htmlEscape(const String&amp; s) {
+  String out;
+  out.reserve(s.length() * 1.2);
+  for (size_t i = 0; i &lt; s.length(); i++) {
+    char c = s[i];
+    switch (c) {
+      case '&amp;':  out += "&amp;amp;";  break;
+      case '"':  out += "&amp;quot;"; break;
+      case '&lt;':  out += "&amp;lt;";   break;
+      case '&gt;':  out += "&amp;gt;";   break;
+      default:   out += c;        break;
+    }
+  }
+  return out;
+}
+
+void releaseAllKeys() {
+  Keyboard.releaseAll();
+  keyHeld = false;
+}
+
+bool isSupportedChar(char c) {
+  if ((c &gt;= 'A' &amp;&amp; c &lt;= 'Z') || (c &gt;= 'a' &amp;&amp; c &lt;= 'z') || (c &gt;= '0' &amp;&amp; c &lt;= '9')) return true;
+  switch(c) {
+    case '!': case '@': case '#': case '$': case '%': case '^': case '&amp;': case '*':
+    case '(': case ')': case '_': case '+': case '-': case '=': case '[': case ']':
+    case '{': case '}': case ';': case '\'': case ':': case '"': case ',': case '.':
+    case '/': case '&lt;': case '&gt;': case '?': case '\\': case '|': case '`': case '~':
+    case ' ': case '\n': case '\r': return true;
+    default: return false;
+  }
+}
+
+bool scanFirstUnsupported(const String &amp;txt) {
+  errLine = 1;
+  errCol = 1;
+  for (size_t i = 0; i &lt; txt.length(); i++) {
+    char c = txt[i];
+    if (c == '\n') {
+      errLine++;
+      errCol = 1;
+      continue;
+    }
+    if (!isSupportedChar(c)) {
+      return true;
+    }
+    errCol++;
+  }
+  errLine = 0;
+  errCol = 0;
+  return false;
+}
+
+void startTyping() {
+  if (inputText.length() == 0) return;
+  releaseAllKeys();
+  typeIndex = 0;
+  isTyping = true;
+  isPaused = false;
+  keyHeld = false;
+  typeTimer = millis() - CHAR_DELAY;  // 回拨一个间隔，让首字符立即触发
+}
+
+void stopTyping() {
+  isTyping = false;
+  isPaused = false;
+  releaseAllKeys();
+}
+
+void processTyping() {
+  if (!isTyping || isPaused) return;
+
+  unsigned long now = millis();
+
+  if (typeIndex &gt;= (int)inputText.length()) {
+    isTyping = false;
+    releaseAllKeys();
+    return;
+  }
+
+  if (!keyHeld) {
+    // 字符间隔门禁：上一个字符释放后必须等够 CHAR_DELAY 才按下一个
+    if (now - typeTimer &lt; (unsigned long)CHAR_DELAY) return;
+
+    char c = inputText[typeIndex];
+
+    // \r 已在存/取时归一化，这里再兜一层：残留 \r 直接跳过，避免重复回车
+    if (c == '\r') {
+      typeIndex++;
+      typeTimer = now;
+      return;
+    }
+
+    if (!isSupportedChar(c)) {
+      typeIndex++;
+      typeTimer = now;
+      return;
+    }
+
+    if (c &gt;= 'A' &amp;&amp; c &lt;= 'Z') {
+      Keyboard.press(KEY_LEFT_SHIFT);
+      Keyboard.press(c);
+    }
+    else if(c == '~') {
+      Keyboard.press(KEY_LEFT_SHIFT);
+      Keyboard.press('`');
+    }
+    else if(c == '|') {
+      Keyboard.press(KEY_LEFT_SHIFT);
+      Keyboard.press('\\');
+    }
+    else if(c == '\n') {
+      Keyboard.press(KEY_RETURN);
+    }
+    else {
+      Keyboard.press(c);
+    }
+    keyHeld = true;
+    typeTimer = now;
+  } else {
+    if (now - typeTimer &gt;= (unsigned long)HOLD_DELAY) {
+      releaseAllKeys();
+      keyHeld = false;
+      typeIndex++;
+      typeTimer = now;
+    }
+  }
+}
+
+// 统一换行为 \n。textarea 提交的是 \r\n，若 \r 和 \n 都发 RETURN 会变成每行多一个空行
+void normalizeNewlines(String &amp;s) {
+  if (s.indexOf('\r') &lt; 0) return;
+  s.replace("\r\n", "\n");
+  s.replace("\r", "\n");
+}
+
+void loadText() {
+  if (!LittleFS.begin(true)) {
+    Serial.println("LittleFS mount failed");
+    inputText = "Hello NEO";
+    errLine = 0; errCol = 0;
+    return;
+  }
+
+  File file = LittleFS.open("/text.txt", "r");
+  if (file) {
+    inputText = file.readString();
+    file.close();
+    normalizeNewlines(inputText);
+    Serial.printf("Loaded text, len: %d\n", inputText.length());
+  } else {
+    inputText = "Hello NEO";
+    Serial.println("No saved text, use default");
+  }
+  scanFirstUnsupported(inputText);
+}
+
+bool saveText(String t) {
+  if (!LittleFS.begin()) {
+    Serial.println("LittleFS mount failed");
+    return false;
+  }
+
+  normalizeNewlines(t);
+
+  File file = LittleFS.open("/text.txt", "w");
+  if (!file) {
+    Serial.println("Cannot open file for write");
+    return false;
+  }
+
+  size_t written = file.print(t);
+  file.close();
+
+  if (written == t.length()) {
+    inputText = t;
+    scanFirstUnsupported(inputText);
+    Serial.printf("Saved, written %d bytes\n", written);
+    return true;
+  } else {
+    Serial.printf("Save incomplete, want %d, wrote %d\n", t.length(), written);
+    return false;
+  }
+}
+
+void handleRoot() {
+  String p = PAGE;
+  p.replace("%TEXT%", htmlEscape(inputText));
+  p.replace("%ERR_LINE%", String(errLine));
+  p.replace("%ERR_COL%", String(errCol));
+
+  String runStatus = "Idle";
+  if(isTyping &amp;&amp; isPaused) runStatus = "Paused";
+  else if(isTyping) runStatus = "Typing";
+  p.replace("%RUN_STATUS%", runStatus);
+
+  String tipHtml = "";
+  if (server.hasArg("status")) {
+    if (server.arg("status") == "ok") {
+      tipHtml = "&lt;div class='status-ok'&gt;✅ Text saved&lt;/div&gt;";
+    } else if (server.arg("status") == "fail") {
+      tipHtml = "&lt;div class='status-fail'&gt;❌ Save failed&lt;/div&gt;";
+    }
+  }
+  p.replace("%TIP%", tipHtml);
+
+  String warnHtml = "";
+  if(errLine &gt; 0){
+    warnHtml = "&lt;div class='warn'&gt;⚠ HID unsupported character found at line " + String(errLine) + ", column " + String(errCol) + ", it will be skipped when typing "
+    + "&lt;button class='btn-locate' onclick='goLine()'&gt;Locate&lt;/button&gt;&lt;/div&gt;";
+  }
+  p.replace("%WARN%", warnHtml);
+
+  server.send(200, "text/html; charset=utf-8", p);
+}
+
+void handleSave() {
+  bool success = false;
+  if (server.hasArg("text")) {
+    success = saveText(server.arg("text"));
+  }
+  String redirectUrl = success ? "/?status=ok" : "/?status=fail";
+  server.sendHeader("Location", redirectUrl);
+  server.send(302, "text/plain", "");
+}
+
+void handleSend() {
+  startTyping();
+  server.sendHeader("Location", "/");
+  server.send(302, "text/plain", "");
+}
+
+void handleStop() {
+  stopTyping();
+  server.sendHeader("Location", "/");
+  server.send(302, "text/plain", "");
+}
+
+void initWiFi() {
+  Serial.begin(115200);
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(STA_SSID, STA_PASS);
+
+  int t = 0;
+  while (WiFi.status() != WL_CONNECTED &amp;&amp; t &lt; 10000) {
+    delay(500);
+    t += 500;
+  }
+
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("STA OK, IP: " + WiFi.localIP().toString());
+  } else {
+    WiFi.mode(WIFI_AP);
+    WiFi.softAP(AP_SSID, AP_PASS);
+    Serial.println("AP mode, IP: 192.168.4.1");
+  }
+  MDNS.begin(MDNS_NAME);
+  Serial.println("mDNS: " + String(MDNS_NAME) + ".local");
+}
+
+void setup() {
+  pinMode(BTN_BOOT, INPUT_PULLUP);
+  USB.begin();
+  Keyboard.begin();
+  loadText();
+  initWiFi();
+
+  server.on("/", handleRoot);
+  server.on("/save", HTTP_POST, handleSave);
+  server.on("/send", HTTP_POST, handleSend);
+  server.on("/stop", HTTP_POST, handleStop);
+
+  server.begin();
+}
+
+void loop() {
+  server.handleClient();
+  processTyping();
+
+  unsigned long now = millis();
+  bool btnPressed = (digitalRead(BTN_BOOT) == LOW);
+
+  // 单击触发，防抖
+  if (btnPressed &amp;&amp; (now - lastPress &gt; debounce)) {
+    lastPress = now;
+    if(isTyping) {
+      isPaused = !isPaused;
+      Serial.printf("Paused = %d\n", isPaused);
+    } else {
+      startTyping();
+    }
+  }
+}</code></pre>
+    </div>
+    <div class="note">存成 <code>~/esp32_hid_key/esp32_hid_key.ino</code>。<b>文件夹名必须与 .ino 同名</b>，否则编译直接报 main file missing。目录里别放别的 <code>.ino</code> 备份，会被一起编译。</div>
+  </section>
+
+  <section>
+    <div class="h"><span class="num">05</span><h2>编译 + 烧录</h2></div>
+    <div class="codewrap">
+      <div class="bar"><span class="fname">Terminal · 参数一项都不要省</span>
+        <button class="copy">复制</button></div>
+<pre><code>cd ~/esp32_hid_key
+
+arduino-cli compile --output-dir=build \
+  --fqbn esp32:esp32:esp32s3 \
+  --build-property build.partitions=default_16MB \
+  --build-property build.flash_size=16MB \
+  --build-property build.psram_type=opi \
+  --build-property build.usb_cdc_on_boot=0 \
+  --build-property build.flashmode=qio \
+  --build-property build.flashfreq=80m \
+  --build-property "build.extra_flags=-DHTTP_MAX_POST_SIZE=65536" .
+
+arduino-cli board list
+arduino-cli upload -p /dev/cu.wchusbserial1420 --fqbn esp32:esp32:esp32s3 --input-dir=build .</code></pre>
+    </div>
+    <ul>
+      <li><code>psram_type=opi</code> 写错（写成 qspi）→ PSRAM 起不来、boot loop</li>
+      <li><code>usb_cdc_on_boot=0</code> → 原生 USB 不再枚举成串口，只做 HID。这是目标机认不到键盘的头号原因</li>
+      <li>端口名以 <code>board list</code> 输出为准，可能是 <code>cu.wchusbserial*</code> / <code>cu.usbserial-*</code> / <code>cu.usbmodem*</code></li>
+    </ul>
+    <div class="h" style="margin-top:22px"><h2 style="font-size:14px">进下载模式</h2></div>
+    <ol class="steps">
+      <li>数据线插板子<b>右侧 UART 口</b>（左口是 HID 口，插它查不到串口）</li>
+      <li>按住 <b>BOOT</b> 不放 → 点一下 <b>EN</b> → 松开 EN → 保持 BOOT 约 1 秒再松开</li>
+      <li>跑 <code>upload</code>，成功后按一下 <b>EN</b> 复位，拔掉右口</li>
+    </ol>
+    <div class="note">报 <code>Failed to connect</code> 就是没进下载模式，回第 2 步重来，别怀疑代码。</div>
+  </section>
+
+  <section>
+    <div class="h"><span class="num">06</span><h2>怎么用</h2></div>
+    <ol class="steps">
+      <li>右口插电 → 手机/Mac 连同一个热点 → 浏览器开 <code>esp32-hid.local</code>（打不开就用串口日志里的 IP）</li>
+      <li>粘贴文本 → <b>Save Text</b>，写进 Flash，断电不丢</li>
+      <li>拔右口 → <b>左口</b>插目标机 → 点目标输入框 → 按一下 <b>BOOT</b> 开始敲</li>
+    </ol>
+    <table>
+      <tr><th>操作</th><th>效果</th></tr>
+      <tr><td>BOOT 单击</td><td>空闲时开始输入；输入中暂停 / 继续</td></tr>
+      <tr><td>Stop Typing</td><td>网页上点，立即中止并放开所有按键</td></tr>
+      <tr><td>Send Now</td><td>从头重打一遍，不用重新配文本</td></tr>
+    </table>
+    <div class="note">远程 VPC / 云桌面：客户端支持 USB 重定向就把 HID 设备重定向进去；不支持就让 VPC 窗口全屏并保持焦点 —— <b>中途切窗口，字符会打到本地</b>。</div>
+  </section>
+
+  <section>
+    <div class="h"><span class="num">07</span><h2>动手前必须知道的</h2></div>
+    <div class="note warn">
+      <b>只打 ASCII。</b>中文、日文、emoji、Tab、方向键、Ctrl 组合键都不支持。固件是逐字符映射 US 键盘 scancode，没有输入法能力。
+    </div>
+    <div class="note warn">
+      <b>目标机必须是英文输入法。</b>停在微软拼音上，即使敲的是 ASCII 也会进候选框变成中文。开工前 <code>Shift</code> 或 <code>Win+Space</code> 切过去。
+    </div>
+    <ul>
+      <li><b>ESP32 只支持 2.4GHz WiFi</b>。手机热点开了「5GHz 优先」可能连不上</li>
+      <li><b>漏字符</b>：远程桌面 / VPC 里把 <code>CHAR_DELAY</code> 从 80 调到 120~200（约 12~20 字/秒）</li>
+      <li><b>macOS 首次插入</b>会弹键盘类型识别向导并抢焦点，按 <code>Esc</code> 关掉，之后不再弹</li>
+      <li><b>文本明文存在板子 Flash 里</b>，用完把网页上的文本清空再 Save</li>
+      <li>确认下 HID 外设接入符合所在环境的安全策略，只在自己被授权的设备上用</li>
+    </ul>
+  </section>
+
+  <footer>
+    <span>v1.1 · 2026-10-29</span>
+    <span>编译实测 1087131 bytes (82%) / RAM 24%</span>
+  </footer>
+
+</div>
+
+<script>
+(function(){
+  function fallback(text, done){
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly','');
+    ta.style.cssText = 'position:fixed;top:0;left:-9999px;opacity:0';
+    document.body.appendChild(ta);
+    ta.select();
+    ta.setSelectionRange(0, text.length);
+    var ok = false;
+    try { ok = document.execCommand('copy'); } catch(e){ ok = false; }
+    document.body.removeChild(ta);
+    if (ok) done(); else alert('复制失败，请手动选中代码复制');
+  }
+
+  function copyText(text, btn){
+    var done = function(){
+      var old = btn.textContent;
+      btn.textContent = '已复制';
+      btn.classList.add('ok');
+      clearTimeout(btn._t);
+      btn._t = setTimeout(function(){
+        btn.textContent = old;
+        btn.classList.remove('ok');
+      }, 1600);
+    };
+    if (navigator.clipboard && window.isSecureContext){
+      navigator.clipboard.writeText(text).then(done, function(){
+        fallback(text, done);
+      });
+    } else {
+      fallback(text, done);
+    }
+  }
+
+  document.addEventListener('click', function(e){
+    var btn = e.target.closest ? e.target.closest('.copy') : null;
+    if (!btn) return;
+    var wrap = btn.closest('.codewrap');
+    var code = wrap ? wrap.querySelector('pre code') : null;
+    if (!code) return;
+    copyText(code.textContent, btn);
+  });
+})();
+</script>
+</body>
+</html>
